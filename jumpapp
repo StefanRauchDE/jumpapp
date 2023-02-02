@@ -79,12 +79,19 @@ jumpapp() {
 
     if [[ -z "$classid" ]]; then
         local classid=$cmdid
+
+        local pids=( $(list_pids_for_command "$cmdid") )
+        local windowids=(
+          $(list_matching_windows "$classid" "${pids[@]}" | select_windowid)
+        )
+    else
+        local pids=( $(list_pids_for_command "$cmdid") )
+        local windowids=(
+          $(list_matching_windows_by_classid "$classid" "${pids[@]}" | select_windowid)
+        )
+        
     fi
 
-    local pids=( $(list_pids_for_command "$cmdid") )
-    local windowids=(
-      $(list_matching_windows "$classid" "${pids[@]}" | select_windowid)
-    )
 
     if [[ -n "$list" ]]; then
       printf 'Matched Windows [%d]\n' ${#windowids[@]}
@@ -128,6 +135,15 @@ list_matching_windows() {
         where_normal_window   # spawns `xprop` process per-id, so do it last
 }
 
+
+list_matching_windows_by_classid() {
+    list_windows |
+        where_title_matches "$matching_title" |
+        where_class_matches "$@" |
+        where_workspace_matches |
+        where_normal_window   # spawns `xprop` process per-id, so do it last
+}
+
 where_workspace_matches() {
     while read -r windowid hostname pid workspace class title; do
         if [[ -z "$workspace_filter" ]] || [[ "$workspace_filter" == "$workspace" ]] || [[ "$workspace" -lt 0 ]]; then
@@ -163,6 +179,21 @@ where_class_or_pid_matches() {
                     continue 2
                 fi
             done
+        fi
+    done
+}
+
+where_class_matches() {
+    local target_class=$1
+    shift
+
+    local local_hostname=$(get_hostname)
+
+    local windowid hostname pid workspace class title
+    while read -r windowid hostname pid workspace class title; do
+        if equals_case_insensitive "$class" "$target_class"; then
+            printf '%s\n' "$windowid $hostname $pid $workspace $class $title"
+            continue
         fi
     done
 }
